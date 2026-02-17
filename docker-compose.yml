@@ -3,5 +3,3 @@ services:
     image: ghcr.io/Circle1688/LicenseManager:v1.0.0
     container_name: license-manager-git
     restart: unless-stopped
-    volumes:
-      -
