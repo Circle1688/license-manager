@@ -5,6 +5,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  IMAGE_NAME: license-manager
 
 jobs:
   build-and-push:
@@ -24,9 +25,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ github.event.inputs.version }}
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/license-manager:latest
+          tags: ${{ steps.meta.outputs.tags }}
