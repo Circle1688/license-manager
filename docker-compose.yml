@@ -2,4 +2,4 @@ services:
   license-manager:
     image: ghcr.io/cedar-v/license-manager:latest
     volumes:
-      -
+      - 
