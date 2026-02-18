@@ -48,6 +48,10 @@ class LicenseClient:
         license_obj = json.loads(license_str)
         print(license_obj)
 
+        # 检查许可证类型
+        if license_obj["deployment_type"] != 'standalone':
+            return False
+
         # 确认当前时间在 start_date 和 end_date 之间
         start_date = datetime.fromisoformat(license_obj["start_date"])
         end_date = datetime.fromisoformat(license_obj["end_date"])
