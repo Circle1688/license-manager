@@ -29,7 +29,7 @@ docker compose -f docker-compose.yml up
 
 ## 访问信息
 
-- http://localhost:7680
+- http://localhost:7860
 
 ## 常用命令
 
