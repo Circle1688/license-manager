@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import gradio as gr
 from license import License
@@ -36,4 +37,7 @@ with gr.Blocks() as demo:
         outputs=[output_textbox]
     )
 
-demo.launch(server_name="0.0.0.0", auth=("admin", "admin"))
+with open("config.json", "r") as f:
+    data = json.load(f)
+
+demo.launch(server_name="0.0.0.0", auth=(data['username'], data['password']))

@@ -7,3 +7,4 @@ services:
     restart: unless-stopped
     volumes:
       - ./PEM:/LicenseManager/PEM
+      - ./config.json:/LicenseManager/config.json
