@@ -212,6 +212,7 @@ with gr.Blocks(title="授权管理系统") as demo:
         column_count=9,
         static_columns=[0,1,2,3,4,5,6,8]
     )
+    refresh_button = gr.Button("刷新数据库")
 
     gen_button.click(
         generate,
@@ -219,4 +220,10 @@ with gr.Blocks(title="授权管理系统") as demo:
         outputs=[output_textbox, data_table]
     )
 
+    refresh_button.click(
+        get_all_licenses,
+        outputs=[data_table]
+    )
+
 demo.launch(server_name="0.0.0.0", auth=check_login)
+# demo.launch(server_name="0.0.0.0")
