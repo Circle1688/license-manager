@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 # from license_client import LicenseClient
 
 def _generate(lic_name, data):
+    data['product'] = lic_name
     data_str = json.dumps(data)
 
     path = os.path.join("PEM", lic_name)
