@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 from license import License
+from sms_verify import SMSVerify
 
 # 创建数据库引擎和基类
 Base = declarative_base()
@@ -17,6 +18,7 @@ class ManagerData(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(50))
+    phone = Column(String(50))
     username = Column(String(50))
     password = Column(String(100))
 
@@ -31,6 +33,8 @@ class LicenseData(Base):
     max_usage = Column(Integer)
     day = Column(Integer)
     activate_code = Column(Text)
+    auth_name = Column(String(50))
+    auth_phone = Column(String(50))
     created_at = Column(DateTime, default=datetime.now)
 
 # 创建数据库连接
@@ -55,9 +59,26 @@ def check_login(username, password):
 
     except Exception as e:
         print(f"数据库错误: {e}")
+        gr.Error(f"数据库错误: {e}")
         return False
 
-def add_license(user, product, category, machine_code, max_usage, day, activate_code):
+def check_phone(phone_number):
+    try:
+        # 连接数据库
+        session = Session()
+
+        manager = session.query(ManagerData).filter_by(phone=phone_number).first()
+
+        if manager:
+            return manager.name
+        return None
+
+    except Exception as e:
+        print(f"数据库错误: {e}")
+        gr.Error(f"数据库错误: {e}")
+        return None
+
+def add_license(user, product, category, machine_code, max_usage, day, activate_code, auth_name, auth_phone):
     session = Session()
 
     try:
@@ -70,7 +91,9 @@ def add_license(user, product, category, machine_code, max_usage, day, activate_
             machine_code=machine_code,
             max_usage=max_usage,
             day=day,
-            activate_code=activate_code
+            activate_code=activate_code,
+            auth_name=auth_name,
+            auth_phone=auth_phone
         )
 
         # 添加到会话并提交
@@ -79,7 +102,8 @@ def add_license(user, product, category, machine_code, max_usage, day, activate_
 
     except Exception as e:
         session.rollback()
-        return f"插入数据时出错: {str(e)}"
+        print( f"插入数据时出错: {str(e)}")
+        gr.Error(f"插入数据时出错: {str(e)}")
     finally:
         session.close()
 
@@ -104,6 +128,8 @@ def get_all_licenses():
                 item.max_usage,
                 item.day,
                 item.activate_code,
+                item.auth_name,
+                item.auth_phone,
                 item.created_at.strftime("%Y-%m-%d %H:%M")
             ])
 
@@ -131,16 +157,51 @@ def get_selected_license_category(evt: gr.SelectData):
     return evt.index
 
 
-def generate(user, category, license_category, machine_code, max_usage, days):
+def generate(phone_number, verify_code, user, category, license_category, machine_code, max_usage, days):
+    if user == "":
+        gr.Warning("请输入客户名称")
+        return gr.update(), gr.update()
+    if license_category == 0:
+        if machine_code == "":
+            gr.Warning("请输入机器码")
+            return gr.update(), gr.update()
+
+    auth_name = check_phone(phone_number)
+
+    if auth_name is None:
+        gr.Warning(f"未登记的手机号 {phone_number}")
+        return gr.update(), gr.update()
+
+    if not SMSVerify.checkSmsVerifyCode(phone_number, verify_code):
+        return gr.update(), gr.update()
+
     if license_category == 0:
         activate_code = License.generate(category, machine_code, days)
-        add_license(user, category, "standalone", machine_code, None, days, activate_code)
+        add_license(user, category, "standalone", machine_code, None, days, activate_code, auth_name, phone_number)
     else:
         activate_code = License.generate_floating(category, max_usage, days)
-        add_license(user, category, "floating", None, max_usage, days, activate_code)
+        add_license(user, category, "floating", None, max_usage, days, activate_code, auth_name, phone_number)
+
+    gr.Info("激活码生成成功")
 
     data = get_all_licenses()
     return activate_code, data
+
+def get_verify_code(phone_number):
+    if check_phone(phone_number) is None:
+        gr.Warning(f"{phone_number} 该手机号没有权限")
+        return gr.update(), gr.update()
+    if not SMSVerify.sendSmsVerify(phone_number):
+        return gr.update(), gr.update()
+    return gr.update(interactive=False), gr.Timer(active=True)
+
+def update_timer_text(timer_data):
+    timer_data -= 1
+    if timer_data > 0:
+        return gr.update(value=timer_data), gr.update(value=f"{timer_data} 秒后可重新获取", interactive=False), gr.update()
+    else:
+        return gr.update(value=60), gr.update(value="获取验证码", interactive=True), gr.Timer(active=False)
+
 
 with gr.Blocks(title="授权管理系统") as demo:
     gr.Markdown("# 授权管理系统")
@@ -192,6 +253,33 @@ with gr.Blocks(title="授权管理系统") as demo:
         step=1,
         minimum=1
     )
+
+    with gr.Row():
+
+        auth_phone = gr.Textbox(
+            lines=1,
+            label="授权手机号",
+            placeholder="请输入有授权权限的手机号",
+        )
+
+        verify_button = gr.Button("获取验证码")
+
+        timer_data = gr.State(value=60)
+        manual_timer = gr.Timer(1, active=False)
+        manual_timer.tick(update_timer_text, inputs=[timer_data], outputs=[timer_data, verify_button, manual_timer])
+
+        verify_button.click(
+            get_verify_code,
+            inputs=[auth_phone],
+            outputs=[verify_button, manual_timer]
+        )
+
+    verify_code = gr.Textbox(
+        lines=1,
+        label="验证码",
+        placeholder="请输入验证码",
+    )
+
     gen_button = gr.Button("生成激活码", variant="primary")
 
     output_textbox = gr.Textbox(
@@ -204,19 +292,19 @@ with gr.Blocks(title="授权管理系统") as demo:
     data_table = gr.Dataframe(
         value=initial_data,
         type="array",
-        headers=["ID", "客户", "产品", "许可类型", "单机机器码", "浮动并发数", "有效期（天）", "激活码", "授权时间"],
+        headers=["ID", "客户", "产品", "许可类型", "单机机器码", "浮动并发数", "有效期（天）", "激活码", "授权人", "授权手机号", "授权时间"],
         label="授权数据表",
         interactive=True,
         wrap=True,
         datatype='auto',
-        column_count=9,
-        static_columns=[0,1,2,3,4,5,6,8]
+        column_count=11,
+        static_columns=[0,1,2,3,4,5,6,8,9,10]
     )
     refresh_button = gr.Button("刷新数据库")
 
     gen_button.click(
         generate,
-        inputs=[user_textbox, category, license_category, machine_code_textbox, max_usage, days],
+        inputs=[auth_phone, verify_code, user_textbox, category, license_category, machine_code_textbox, max_usage, days],
         outputs=[output_textbox, data_table]
     )
 
