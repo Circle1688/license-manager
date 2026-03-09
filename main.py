@@ -9,6 +9,10 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from license import License
 from sms_verify import SMSVerify
 
+import pytz
+
+china_tz = pytz.timezone('Asia/Shanghai')
+
 # 创建数据库引擎和基类
 Base = declarative_base()
 
@@ -35,7 +39,7 @@ class LicenseData(Base):
     activate_code = Column(Text)
     auth_name = Column(String(50))
     auth_phone = Column(String(50))
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=datetime.now(china_tz))
 
 # 创建数据库连接
 engine = create_engine('sqlite:///data.db')
@@ -195,6 +199,10 @@ def get_verify_code(phone_number):
         return gr.update(), gr.update()
     return gr.update(interactive=False), gr.Timer(active=True)
 
+def load():
+    initial_data = get_all_licenses()
+    return initial_data
+
 def update_timer_text(timer_data):
     timer_data -= 1
     if timer_data > 0:
@@ -312,6 +320,8 @@ with gr.Blocks(title="授权管理系统") as demo:
         get_all_licenses,
         outputs=[data_table]
     )
+
+    demo.load(load, outputs=[data_table])
 
 demo.launch(server_name="0.0.0.0", auth=check_login)
 # demo.launch(server_name="0.0.0.0")
