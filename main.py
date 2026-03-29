@@ -39,7 +39,7 @@ class LicenseData(Base):
     activate_code = Column(Text)
     auth_name = Column(String(50))
     auth_phone = Column(String(50))
-    created_at = Column(DateTime, default=datetime.now(china_tz))
+    created_at = Column(DateTime)
 
 # 创建数据库连接
 engine = create_engine('sqlite:///data.db')
@@ -97,7 +97,8 @@ def add_license(user, product, category, machine_code, max_usage, day, activate_
             day=day,
             activate_code=activate_code,
             auth_name=auth_name,
-            auth_phone=auth_phone
+            auth_phone=auth_phone,
+            created_at=datetime.now(china_tz)
         )
 
         # 添加到会话并提交
